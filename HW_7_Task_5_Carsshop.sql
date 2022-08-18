@@ -48,17 +48,63 @@ INSERT INTO orders(car_id, clients_id) VALUES (3, 3), (4, 2);
 INSERT INTO orders(car_id, clients_id) VALUES (6, 2); 
 INSERT INTO orders(car_id, clients_id) VALUES (7, 1); 
 
+SET GLOBAL log_bin_trust_function_creators = 1;   -- по умолчанию что б CREATE FUNCTION функция была принята переменная должна = 1, по умолчанию она = 0
+
 -- Используя базу данных carsshop создайте функцию для нахождения минимального возраста клиента, затем сделайте выборку всех машин, которые он купил.
 
 SELECT MIN(cl.age) AS min_age FROM carsshop.clients AS cl;
 
-SELECT cl.name, m.mark, c.model FROM carsshop.marks AS m
+DELIMITER |
+CREATE FUNCTION MinAgeCliens()
+RETURNS TINYINT
+BEGIN
+    RETURN (SELECT MIN(cl.age) FROM carsshop.clients AS cl);
+END;
+|    
+
+DELIMITER |
+SELECT MinAgeCliens(); 
+|
+
+SELECT cl.name, MinAgeCliens() AS age, m.mark, c.model FROM carsshop.marks AS m
 INNER JOIN carsshop.cars AS c ON m.mark_id = c.mark_id
 INNER JOIN carsshop.orders AS o ON o.car_id = c.cars_id
 INNER JOIN carsshop.clients AS cl ON o.clients_id = cl.clients_id
-WHERE cl.age = (SELECT MIN(cl.age) AS min_age FROM carsshop.clients AS cl);
+WHERE cl.age = MinAgeCliens(); |
+
+-- ИСЛОЖНИЛ ЗАДАНИЕ. Используя базу данных carsshop создайте функцию для определения статуса клиентов, если общая сумма покупок клиента меньше 50000 дол. у него статус simple, 
+-- от 50000 до < 100000 дол. он medium, а от 100000 и более статут клиента = vip.
+
+SELECT cl.name, m.mark, c.model, c.price FROM carsshop.marks AS m          -- выбрали для дебага все машины клиентов
+INNER JOIN carsshop.cars AS c ON m.mark_id = c.mark_id
+INNER JOIN carsshop.orders AS o ON o.car_id = c.cars_id
+INNER JOIN carsshop.clients AS cl ON o.clients_id = cl.clients_id; |
+
+SELECT cl.name, SUM(c.price) AS total_price FROM carsshop.cars AS c        -- выбрали для дебага общие суммы всех покупок наших клиентов
+INNER JOIN carsshop.orders AS o ON o.car_id = c.cars_id
+INNER JOIN carsshop.clients AS cl ON o.clients_id = cl.clients_id
+GROUP BY cl.name; |
+
+DELIMITER |                                                                -- функция определения статуса наших клиентов
+CREATE FUNCTION getStatusClients(total INT)
+RETURNS VARCHAR(15)
+BEGIN
+DECLARE statusClients VARCHAR(15) DEFAULT 'simple';
+	IF total >= 50000 AND total < 100000
+		THEN SET statusClients = 'medium';
+	ELSEIF total >= 100000
+      THEN SET statusClients = 'vip';
+	END IF;    
+    RETURN statusClients;
+END;
+ |
+ 
+ DELIMITER |
+ SELECT getStatusClients(55000) AS Status; |                                     -- проверка работоспособности функции для дебага
 
 
-
-
+SELECT cl.name, getStatusClients(SUM(c.price)) AS status FROM carsshop.cars AS c      -- выбираем всех нааших клиентов и динамически определяем их статуса в зависимости от сум покупок
+INNER JOIN carsshop.orders AS o ON o.car_id = c.cars_id
+INNER JOIN carsshop.clients AS cl ON o.clients_id = cl.clients_id
+GROUP BY cl.name; |
 
